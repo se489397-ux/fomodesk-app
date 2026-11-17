@@ -10,12 +10,12 @@
   if (H.get('d') && /^[0-9a-f]{20,40}$/i.test(H.get('d'))) { localStorage.setItem('deskData', H.get('d')); H.delete('d'); history.replaceState(null, '', location.pathname + (H.toString() ? '#' + H : '')); }
   const DATA = () => localStorage.getItem('deskData') || '';
   const PLAN_B = !!DATA() && !TOKEN();
-  const GIST_OWNER = 'se489397-ux', TG = 'https://t.me/pasososobot', TG_NAME = '@pasososobot', POLL_S = 15, STALE_S = 600;
+  const GIST_OWNER = 'se489397-ux', TG = 'https://t.me/Anotop1290bot', TG_NAME = '@Anotop1290bot', POLL_S = 15, STALE_S = 600;
   const seen = {};   // file -> newest publishedAt shown; never step backwards (raw gist replicas lag)
   function fileFor(path) {
     const [p, q] = path.split('?'), qs = new URLSearchParams(q || '');
     let m;
-    if (p === 'state' || p === 'account' || p === 'activity' || p === 'orders') return p + '.json';
+    if (p === 'state' || p === 'account' || p === 'activity' || p === 'orders' || p === 'picks') return p + '.json';
     if (p === 'chart') return `chart_${qs.get('range') || 'LIVE'}.json`;
     if ((m = p.match(/^bots\/(\w+)\/decisions$/))) return `decisions_${m[1]}.json`;
     if ((m = p.match(/^(coin|audit)\/([1-9A-HJ-NP-Za-km-z]{32,44})$/))) return `${m[1]}__${m[2]}.json`;
@@ -203,12 +203,30 @@
       <a class="row" href="${esc(a.profileUrl)}" target="_blank" rel="noopener"><div class="tx"><div class="t" style="color:#fff">Your FOMO profile</div><div class="st">@${esc(a.handle)}</div></div><div class="v faint">›</div></a>
       <button class="row" style="width:100%;text-align:left" id="invite"><div class="tx"><div class="t">Invite a friend</div><div class="st">Share your FOMO link</div></div><div class="v faint">›</div></button></div>
     <h2>Settings</h2>${Object.entries(a.settings).map(([g, list]) => `<div class="card"><div style="font-weight:600;color:${COL[g] || '#fff'};margin-bottom:2px">${names[g] || g}</div>${list.map(setRow).join('')}</div>`).join('')}
-    <h2>Picks</h2><div class="list">${a.picks.length ? a.picks.map(p => `<a class="row" href="${esc(p.link)}" target="_blank" rel="noopener"><div class="tx"><div class="t" style="color:#fff">${esc(p.symbol)}</div><div class="st">score ${p.score}</div></div><div class="v faint">›</div></a>`).join('') : '<div class="row muted">No picks tonight yet</div>'}</div>
-    <button class="btn" id="copypicks">Copy picks</button>
+    ${copyPicks()}
     <h2>Notifications</h2><div class="list"><div class="row"><div class="tx"><div class="t">Telegram</div><div class="st">${a.push.telegram ? 'connected' : 'not connected'}</div></div></div>
       <div class="row"><div class="tx"><div class="t">Web push</div><div class="st">${a.push.webpush ? a.push.webpush + ' device(s)' : 'not connected · add to Home Screen first'}</div></div></div></div>
     ${PLAN_B ? '' : '<button class="btn" id="testpush">Send test push</button>'}
     <button class="btn blue" id="watch">Watch in Grok Bot</button>`;
+  }
+
+  // ---------- COPY PICKS (Account tab) ----------
+  function copyPicks() {
+    const P = S.picks, ago = ts => { if (!ts) return 'unknown'; const m = (Date.now() / 1000 - ts) / 60; return m < 60 ? `${m.toFixed(0)}m ago` : `${(m / 60).toFixed(0)}h ago`; };
+    const usd = v => (v >= 0 ? '+' : '-') + '$' + (Math.abs(v) >= 1e6 ? (Math.abs(v) / 1e6).toFixed(1) + 'M' : Math.abs(v) >= 1e3 ? (Math.abs(v) / 1e3).toFixed(1) + 'K' : Math.abs(v).toFixed(0));
+    if (!P || !P.latest) return `<h2>Copy picks</h2><div class="empty">${esc(P ? 'Copy picks: ' + P.status : 'Copy picks: no data yet')}</div>`;
+    const card = p => `<div class="card"><div style="display:flex;align-items:center;gap:8px"><div style="font-weight:700;font-size:17px">#${p.rank} ${esc(p.handle)}</div>
+        <div style="margin-left:auto">${PLAN_B ? `<span class="pill ${p.copying ? 'green' : 'grey'}">${p.copying ? 'Copying' : 'Copy off'}</span>` : `<button class="switch ${p.copying ? 'on' : ''}" data-copy="${esc(p.id)}" aria-label="Copy on desk"></button>`}</div></div>
+      <div style="margin-top:4px;font-size:15px"><span class="up">7d ${usd(p.pnl7d)}</span> · <span class="up">30d ${usd(p.pnl30d)}</span></div>
+      <div class="muted" style="font-size:13px;margin-top:2px">${p.trades} trades · last trade ${ago(p.lastTrade)} · ${esc(p.coinCheck)}</div>
+      <div class="muted" style="font-size:13px;margin-top:2px">${esc(p.why)}</div>
+      <a class="row" href="${esc(p.lastBuyUrl)}" target="_blank" rel="noopener" style="min-height:44px"><div class="tx"><div class="t" style="color:#fff;font-size:15px">Last buy: ${esc((p.lastBuy && (p.lastBuy.symbol || (p.lastBuy.mint || '').slice(0, 6))) || '—')}</div><div class="st">${p.lastBuy && p.lastBuy.mcap ? 'at ' + usd(p.lastBuy.mcap).slice(1) : 'mcap n/a'}</div></div><div class="v faint">›</div></a>
+      <a class="btn" href="${esc(p.profileUrl)}" target="_blank" rel="noopener" style="height:40px;margin-top:6px">Profile</a></div>`;
+    const hist = P.history.map(r => `<div class="row" style="min-height:40px"><div class="tx"><div class="st">${new Date(r.ts * 1000).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'})} · ${r.picks.map(p => esc(p.handle)).join(', ') || 'nobody'}</div></div></div>`).join('');
+    return `<h2>Copy picks<span class="sub">· ${P.latest.picks.length} traders</span></h2>${P.latest.picks.map(card).join('') || '<div class="empty">Nobody passed today\'s filters</div>'}
+      ${PLAN_B ? `<a class="btn" href="${TG}" target="_blank" rel="noopener">Copy on desk · ${TG_NAME}</a>` : ''}
+      <button class="btn" id="copypicks">Copy picks</button>
+      ${hist ? `<h2>Last lists</h2><div class="list">${hist}</div>` : ''}`;
   }
 
   // ---------- COIN / AUDIT screens ----------
@@ -301,12 +319,16 @@
       try { await navigator.clipboard.writeText(a.signupUrl); } catch (_) { }
       toast('Link copied');
     };
-    $('#copypicks').onclick = async () => {
-      const t = a.picks.map(p => `${p.symbol} · score ${p.score}\n${p.link}`).join('\n') || 'No picks tonight yet';
+    if ($('#copypicks')) $('#copypicks').onclick = async () => {
+      const t = (S.picks && S.picks.message) || 'No copy picks yet';
       try { await navigator.clipboard.writeText(t); } catch (_) { }
       toast('Picks copied');
     };
     if ($('#testpush')) $('#testpush').onclick = async () => { try { const r = await post('push', {test: true}); toast(r.sent ? 'Sent' : r.error); } catch (e) { toast(e.message); } };
+    document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+      try { const r = await post('copy/' + encodeURIComponent(b.dataset.copy), {on: !b.classList.contains('on')}); toast(r.message); S.picks = await api('picks'); render(); }
+      catch (e) { toast(e.message); }
+    });
     $('#watch').onclick = () => toast('In your Grok Bot chat, say: watch the desk');
     document.querySelectorAll('.set input').forEach(inp => {
       inp.oninput = () => document.querySelectorAll(`.set input[data-key="${inp.dataset.key}"]`).forEach(o => o !== inp && (o.value = inp.value));
@@ -344,7 +366,7 @@
       if (S.tab === 'home' || S.tab === 'bots') { S.state = await api('state'); }
       if (S.tab === 'home') { await loadChart(); S.acts = await api('activity'); }
       if (S.tab === 'activity') S.acts = await api('activity');
-      if (S.tab === 'account') S.account = await api('account');
+      if (S.tab === 'account') { S.account = await api('account'); try { S.picks = await api('picks'); } catch (_) { S.picks = null; } }
       const pub = PLAN_B && S.state && S.state.publishedAt;
       S.lastOk = pub ? pub * 1000 : Date.now(); S.retry = 0;
       if (pub && Date.now() / 1000 - pub > STALE_S) offline({stale: true}); else offline(null);
